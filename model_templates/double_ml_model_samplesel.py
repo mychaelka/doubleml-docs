@@ -1,6 +1,7 @@
 from sklearn.utils import check_X_y
 
 from doubleml.double_ml import DoubleML
+from doubleml.double_ml_data import DoubleMLData
 # from .double_ml import DoubleML -- not working
 from doubleml._utils import _dml_cv_predict, _dml_tune
 from doubleml._utils_checks  import _check_finite_predictions
@@ -24,10 +25,28 @@ class DoubleMLSS(DoubleML):
     ml_m : classifier implementing ``fit()`` and ``predict()``
         A machine learner implementing ``fit()`` and ``predict()`` methods (e.g.
         :py:class:`sklearn.ensemble.RandomForestClassifier`) for the nuisance function :math:`m_0(X) = E[D|X]`.
+    
+    selection :
+
+    non_random_missing : 
+
+    trim : Trimming rule for discarding observations with (products of) propensity scores that are smaller 
+        than trim (to avoid too small denominators in weighting by the inverse of the propensity scores). 
+        If selected is 0 (ATE estimation for the total population), observations with products of the treatment and 
+        selection propensity scores that are smaller than trim are discarded. If selected is 1 (ATE estimation for 
+        the subpopulation with observed outcomes), observations with treatment propensity scores smaller than trim are 
+        discarded. 
+        Default is ``0.01``.
+    
+    dtreat : Value of the treatment in the treatment group.
+        Default is ``1``.
+
+    dcontrol : Value of the treatment in the control group.
+        Default is ``0``.
 
     n_folds : int
         Number of folds.
-        Default is ``5``.
+        Default is ``3``.
 
     n_rep : int
         Number of repetitons for the sample splitting.
@@ -41,6 +60,10 @@ class DoubleMLSS(DoubleML):
     dml_procedure : str
         A str (``'dml1'`` or ``'dml2'``) specifying the double machine learning algorithm.
         Default is ``'dml2'``.
+    
+    normalize_ipw : bool
+    Indicates whether the inverse probability weights are normalized.
+    Default is ``True``.
 
     draw_sample_splitting : bool
         Indicates whether the sample splitting should be drawn during initialization of the object.
@@ -86,11 +109,17 @@ class DoubleMLSS(DoubleML):
     def __init__(self,
                  obj_dml_data,
                  ml_g,  # TODO add a entry for each nuisance function
-                 ml_m,  # TODO add a entry for each nuisance function
-                 n_folds=5,
+                 ml_m,
+                 selection,  # 1 if y is observed and 0 y is not observed (missing)
+                 non_random_missing = False,  # indicates whether MAR holds or not
+                 trim = 0.01, 
+                 dtreat = 1,
+                 dcontrol = 1,
+                 n_folds=3,
                  n_rep=1,
                  score='my_orthogonal_score',  # TODO give a name for your orthogonal score function
                  dml_procedure='dml2',
+                 normalize_ipw=True,
                  draw_sample_splitting=True,
                  apply_cross_fitting=True):
         super().__init__(obj_dml_data,
@@ -100,6 +129,9 @@ class DoubleMLSS(DoubleML):
                          dml_procedure,
                          draw_sample_splitting,
                          apply_cross_fitting)
+        
+        self._normalize_ipw = normalize_ipw
+        self.__selection = selection
 
         self._check_data(self._dml_data)
         self._check_score(self.score)
@@ -127,7 +159,14 @@ class DoubleMLSS(DoubleML):
         return
 
     def _check_data(self, obj_dml_data):
-        # TODO model specific data requirements can be checked here
+        if not isinstance(obj_dml_data, DoubleMLData):
+            raise TypeError('The data must be of DoubleMLData type. '
+                            f'{str(obj_dml_data)} of type {str(type(obj_dml_data))} was passed.')
+        if obj_dml_data.z_cols is not None:
+            raise ValueError('Incompatible data. ' +
+                             ' and '.join(obj_dml_data.z_cols) +
+                             ' have been set as instrumental variable(s). '
+                             'To fit a partially linear IV regression model use DoubleMLPLIV instead of DoubleMLSS.')
         return
 
     def _nuisance_est(self, smpls, n_jobs_cv):
