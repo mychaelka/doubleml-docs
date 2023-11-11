@@ -1,11 +1,15 @@
 from sklearn.utils import check_X_y
 
-from .double_ml import DoubleML
-from ._utils import _dml_cv_predict, _dml_tune, _check_finite_predictions
+from doubleml.double_ml import DoubleML
+# from .double_ml import DoubleML -- not working
+from doubleml._utils import _dml_cv_predict, _dml_tune
+from doubleml._utils_checks  import _check_finite_predictions
+
+#from ._utils import _dml_cv_predict, _dml_tune, _check_finite_predictions -- also not working
 
 
-class DoubleMLNewModel(DoubleML):  # TODO change DoubleMLNewModel to your model name
-    """Double machine learning for ??? TODO add your model description
+class DoubleMLSS(DoubleML):
+    """Double machine learning for sample selection models
 
     Parameters
     ----------
@@ -49,6 +53,31 @@ class DoubleMLNewModel(DoubleML):  # TODO change DoubleMLNewModel to your model 
     Examples
     --------
     # TODO add an example
+
+    # Simulation study
+    >>> import numpy as np
+    >>> import doubleml as dml
+    >>> from doubleml.datasets import make_pliv_CHS2015
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> from sklearn.base import clone
+    >>> np.random.seed(3141)
+
+    >>> n = 2000  # sample size
+    >>> p = 100  # number of covariates
+    >>> s = 2  # number of covariates that are confounders
+    >>> sigma = np.array([1, 0.5], [0.5, 1])
+    >>> e = np.random.multivariate_normal(mean=[0, 0], cov=sigma, size=n).T
+    >>> x = np.random.randn(n, p)  # covariate matrix
+    >>> beta = np.hstack((np.repeat(0.25, s), np.repeat(0, p - s)))  # Coefficients determining the degree of confounding
+    >>> d = np.where(np.dot(x, beta) + np.random.randn(n) > 0, 1, 0)  # Treatment equation
+    >>> z = np.random.randn(n)
+    >>> s = np.where(np.dot(x, beta) + 0.25 * d + z + e[0] > 0, 1, 0)  # Selection equation
+    >>> y = np.dot(x, beta) + 0.5 * d + e[1]  # Outcome equation
+    >>> y[s == 0] = 0  # Setting values to 0 based on the selection equation
+
+    #  The true ATE is equal to 0.5
+    
+
 
     Notes
     -----
